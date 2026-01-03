@@ -1,98 +1,100 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { api } from "@/convex/_generated/api";
+import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "convex/react";
+import { Card, useThemeColor } from "heroui-native";
+import { ScrollView, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const user = useQuery(api.users.current);
+  const insets = useSafeAreaInsets();
+  const muted = useThemeColor("muted");
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  return (
+    <ScrollView
+      className="flex-1 bg-background"
+      contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 32 }}
+    >
+      <View className="px-6">
+        {/* Header */}
+        <View className="mb-8">
+          <Text className="text-muted text-base">Welcome back,</Text>
+          <Text className="text-foreground text-2xl font-semibold">
+            {user?.firstName || "Guest"}
+          </Text>
+        </View>
+
+        {/* Event Banner */}
+        <Card className="mb-6 p-5">
+          <Card.Body>
+            <Text className="text-lg font-semibold text-foreground mb-1">
+              Saraswati Puja 2025
+            </Text>
+            <Text className="text-muted text-sm mb-4">
+              4 days of competitions and celebrations
+            </Text>
+            <View className="flex-row gap-4">
+              <View className="flex-row items-center gap-1">
+                <Ionicons name="calendar-outline" size={16} color={muted} />
+                <Text className="text-muted text-sm">4 Days</Text>
+              </View>
+              <View className="flex-row items-center gap-1">
+                <Ionicons name="trophy-outline" size={16} color={muted} />
+                <Text className="text-muted text-sm">20+ Events</Text>
+              </View>
+            </View>
+          </Card.Body>
+        </Card>
+
+        {/* Quick Actions */}
+        <Text className="text-foreground font-medium mb-3">Quick Actions</Text>
+        <View className="gap-3">
+          <Card className="p-4">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-3">
+                <View className="w-10 h-10 rounded-full bg-accent/20 items-center justify-center">
+                  <Ionicons name="calendar" size={20} color={muted} />
+                </View>
+                <View>
+                  <Text className="text-foreground font-medium">View Schedule</Text>
+                  <Text className="text-muted text-sm">See all programs</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={muted} />
+            </View>
+          </Card>
+
+          <Card className="p-4">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-3">
+                <View className="w-10 h-10 rounded-full bg-accent/20 items-center justify-center">
+                  <Ionicons name="person" size={20} color={muted} />
+                </View>
+                <View>
+                  <Text className="text-foreground font-medium">My Registrations</Text>
+                  <Text className="text-muted text-sm">0 programs</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={muted} />
+            </View>
+          </Card>
+
+          <Card className="p-4">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-3">
+                <View className="w-10 h-10 rounded-full bg-accent/20 items-center justify-center">
+                  <Ionicons name="stats-chart" size={20} color={muted} />
+                </View>
+                <View>
+                  <Text className="text-foreground font-medium">My Stats</Text>
+                  <Text className="text-muted text-sm">View your performance</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={muted} />
+            </View>
+          </Card>
+        </View>
+      </View>
+    </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
