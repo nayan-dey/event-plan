@@ -9,6 +9,9 @@
  */
 
 import type * as http from "../http.js";
+import type * as programs from "../programs.js";
+import type * as registrations from "../registrations.js";
+import type * as teams from "../teams.js";
 import type * as users from "../users.js";
 
 import type {
@@ -19,6 +22,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   http: typeof http;
+  programs: typeof programs;
+  registrations: typeof registrations;
+  teams: typeof teams;
   users: typeof users;
 }>;
 
