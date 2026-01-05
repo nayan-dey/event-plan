@@ -1,69 +1,63 @@
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
-import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import {
-  ArrowLeft,
-  CheckCircle,
-  Crown,
-  Phone,
-  Plus,
-  Trash2,
-  User,
-  Users,
-  X,
-} from "lucide-react-native";
-import { useCallback, useState } from "react";
-import { Alert, Pressable, ScrollView, Text, TextInput, useColorScheme, View } from "react-native";
+import { Button, Card, Chip, Spinner, TextField, useThemeColor } from "heroui-native";
+import { useCallback, useMemo, useState } from "react";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+type TeamMember = {
+  _id: Id<"teamMembers">;
+  name: string;
+  phone?: string;
+  isAppUser: boolean;
+  userId?: Id<"users">;
+};
 
 export default function TeamDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const [foreground, muted] = useThemeColor(["foreground", "muted"]);
 
   const teamId = id as Id<"teams">;
+
   const team = useQuery(api.teams.getWithMembers, { teamId });
-  const currentUser = useQuery(api.users.current);
+  const user = useQuery(api.users.current);
 
   const addMember = useMutation(api.teams.addMember);
   const removeMember = useMutation(api.teams.removeMember);
   const submitTeam = useMutation(api.teams.submit);
   const deleteTeam = useMutation(api.teams.deleteTeam);
 
-  const [showAddMember, setShowAddMember] = useState(false);
   const [memberName, setMemberName] = useState("");
   const [memberPhone, setMemberPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Theme colors
-  const colors = {
-    bg: isDark ? "#0a0a0f" : "#f5f5f7",
-    surface: isDark ? "#13131a" : "#ffffff",
-    card: isDark ? "#1a1a24" : "#ffffff",
-    border: isDark ? "#2a2a3a" : "#e5e5ea",
-    text: isDark ? "#ffffff" : "#1c1c1e",
-    textSecondary: isDark ? "#a0a0b0" : "#3a3a3c",
-    muted: isDark ? "#6b6b7b" : "#8e8e93",
-    input: isDark ? "#1a1a24" : "#f5f5f7",
-  };
+  const isCaptain = useMemo(() => {
+    return team?.captainId === user?._id;
+  }, [team, user]);
 
-  const isCaptain = currentUser?._id === team?.captainId;
-  const canEdit = isCaptain && team?.status === "forming";
+  const canSubmit = useMemo(() => {
+    if (!team) return false;
+    const memberCount = team.members?.length || 0;
+    return memberCount >= (team.program?.minTeamSize || 0);
+  }, [team]);
+
   const memberCount = team?.members?.length || 0;
-  const minMembers = team?.program?.minTeamSize || 5;
-  const maxMembers = team?.program?.maxTeamSize || 10;
-  const canAddMore = memberCount < maxMembers;
-  const canSubmit = memberCount >= minMembers;
+  const minSize = team?.program?.minTeamSize || 0;
+  const maxSize = team?.program?.maxTeamSize || 0;
+
+  // Filter out captain from displayed members list (captain shown separately)
+  const nonCaptainMembers = useMemo(() => {
+    if (!team?.members || !team?.captainId) return [];
+    return team.members.filter((m: TeamMember) => m.userId !== team.captainId);
+  }, [team]);
 
   const handleAddMember = useCallback(async () => {
-    if (!memberName.trim()) {
-      Alert.alert("Error", "Please enter member name");
-      return;
-    }
+    if (!memberName.trim()) return;
 
     setIsLoading(true);
     try {
@@ -74,9 +68,8 @@ export default function TeamDetailScreen() {
       });
       setMemberName("");
       setMemberPhone("");
-      setShowAddMember(false);
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to add member");
+    } catch (err) {
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
@@ -84,50 +77,31 @@ export default function TeamDetailScreen() {
 
   const handleRemoveMember = useCallback(
     async (memberId: Id<"teamMembers">) => {
-      Alert.alert("Remove Member", "Are you sure you want to remove this member?", [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await removeMember({ memberId });
-            } catch (err: any) {
-              Alert.alert("Error", err.message || "Failed to remove member");
-            }
-          },
-        },
-      ]);
+      setIsLoading(true);
+      try {
+        await removeMember({ memberId });
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
     },
     [removeMember]
   );
 
   const handleSubmit = useCallback(async () => {
-    Alert.alert(
-      "Submit Team",
-      "Once submitted, you won't be able to add or remove members. Continue?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Submit",
-          onPress: async () => {
-            setIsLoading(true);
-            try {
-              await submitTeam({ teamId });
-              Alert.alert("Success", "Team registered successfully!");
-            } catch (err: any) {
-              Alert.alert("Error", err.message || "Failed to submit team");
-            } finally {
-              setIsLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    setIsLoading(true);
+    try {
+      await submitTeam({ teamId });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
   }, [teamId, submitTeam]);
 
-  const handleDelete = useCallback(async () => {
-    Alert.alert("Delete Team", "This will cancel your team's registration. Continue?", [
+  const handleDelete = useCallback(() => {
+    Alert.alert("Delete Team", "Are you sure you want to delete this team?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
@@ -136,8 +110,8 @@ export default function TeamDetailScreen() {
           try {
             await deleteTeam({ teamId });
             router.back();
-          } catch (err: any) {
-            Alert.alert("Error", err.message || "Failed to delete team");
+          } catch (err) {
+            console.error(err);
           }
         },
       },
@@ -146,289 +120,167 @@ export default function TeamDetailScreen() {
 
   if (!team) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.bg }} className="items-center justify-center">
-        <Text style={{ color: colors.muted }}>Loading...</Text>
+      <View className="flex-1 bg-background items-center justify-center">
+        <Spinner size="lg" />
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
+    <View className="flex-1 bg-background">
+      {/* Header */}
+      <View
+        style={{ paddingTop: insets.top }}
+        className="px-5 py-4 flex-row items-center gap-4"
+      >
+        <Pressable onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={foreground} />
+        </Pressable>
+        <View className="flex-1">
+          <Text className="text-xl font-semibold text-foreground">{team.name}</Text>
+          <Text className="text-muted text-sm">{team.program?.name}</Text>
+        </View>
+        <Chip
+          variant="secondary"
+          color={team.status === "registered" ? "success" : "warning"}
+        >
+          <Chip.Label className="capitalize">{team.status}</Chip.Label>
+        </Chip>
+      </View>
+
       <ScrollView
         className="flex-1 px-5"
-        contentContainerStyle={{ paddingBottom: insets.bottom + 150 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View className="pt-4">
-          <Pressable
-            style={{ backgroundColor: colors.surface }}
-            className="w-10 h-10 rounded-full items-center justify-center mb-4"
-            onPress={() => router.back()}
-          >
-            <ArrowLeft size={20} color={colors.text} />
-          </Pressable>
-
-          {/* Status Badge */}
-          <View className="flex-row items-center gap-2 mb-2">
+        {/* Progress */}
+        <Card className="p-4 mb-6">
+          <View className="flex-row justify-between mb-2">
+            <Text className="text-muted text-sm">Team Size</Text>
+            <Text className="text-foreground font-medium">
+              {memberCount} / {minSize}-{maxSize}
+            </Text>
+          </View>
+          <View className="h-2 bg-default rounded-full overflow-hidden">
             <View
-              style={{
-                backgroundColor: team.status === "registered" ? "rgba(16, 185, 129, 0.15)" : "rgba(139, 92, 246, 0.15)"
-              }}
-              className="px-3 py-1 rounded-full"
-            >
-              <Text
-                style={{ color: team.status === "registered" ? "#10B981" : "#8B5CF6" }}
-                className="text-sm font-medium capitalize"
-              >
-                {team.status}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={{ color: colors.text }} className="text-2xl font-bold">
-            {team.name}
-          </Text>
-          <Text style={{ color: colors.muted }} className="mt-1">{team.program?.name}</Text>
-        </View>
-
-        {/* Team Size Progress */}
-        <View
-          style={{ backgroundColor: colors.card, borderColor: colors.border }}
-          className="mt-6 rounded-2xl p-4 border"
-        >
-          <View className="flex-row items-center justify-between mb-3">
-            <View className="flex-row items-center">
-              <LinearGradient
-                colors={["#8B5CF6", "#6D28D9"]}
-                className="w-10 h-10 rounded-full items-center justify-center mr-3"
-              >
-                <Users size={20} color="#fff" />
-              </LinearGradient>
-              <View>
-                <Text style={{ color: colors.text }} className="font-semibold">
-                  {memberCount} / {minMembers}
-                  {maxMembers !== minMembers ? `-${maxMembers}` : ""} members
-                </Text>
-                <Text style={{ color: colors.muted }} className="text-sm">
-                  {canSubmit ? "Ready to submit" : `Need ${minMembers - memberCount} more`}
-                </Text>
-              </View>
-            </View>
-            {canSubmit && team.status === "forming" && (
-              <View className="bg-emerald-500/20 w-8 h-8 rounded-full items-center justify-center">
-                <CheckCircle size={18} color="#10B981" />
-              </View>
-            )}
-          </View>
-
-          {/* Progress Bar */}
-          <View style={{ backgroundColor: colors.border }} className="h-2 rounded-full overflow-hidden">
-            <LinearGradient
-              colors={canSubmit ? ["#10B981", "#047857"] : ["#8B5CF6", "#6D28D9"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={{ width: `${Math.min((memberCount / minMembers) * 100, 100)}%` }}
-              className="h-full rounded-full"
+              className={`h-full rounded-full ${
+                memberCount >= minSize ? "bg-success" : "bg-warning"
+              }`}
+              style={{ width: `${Math.min((memberCount / minSize) * 100, 100)}%` }}
             />
           </View>
-        </View>
+          {memberCount < minSize && (
+            <Text className="text-warning text-sm mt-2">
+              Need {minSize - memberCount} more member(s) to submit
+            </Text>
+          )}
+        </Card>
 
         {/* Captain */}
-        <View className="mt-6 mb-3 flex-row items-center justify-between">
-          <Text style={{ color: colors.text }} className="font-semibold">Captain</Text>
-        </View>
-        <View
-          style={{ backgroundColor: colors.card, borderColor: colors.border }}
-          className="rounded-2xl p-4 border"
-        >
-          <View className="flex-row items-center">
-            <LinearGradient
-              colors={["#F59E0B", "#D97706"]}
-              className="w-12 h-12 rounded-full items-center justify-center mr-3"
-            >
-              <Crown size={20} color="#fff" />
-            </LinearGradient>
+        <Text className="text-foreground font-medium mb-3">Captain</Text>
+        <Card className="p-4 mb-6">
+          <View className="flex-row items-center gap-3">
+            <View className="w-10 h-10 rounded-full bg-accent items-center justify-center">
+              <Text className="text-accent-foreground font-semibold">
+                {team.captain?.firstName?.[0]}
+              </Text>
+            </View>
             <View className="flex-1">
-              <Text style={{ color: colors.text }} className="font-semibold">
+              <Text className="text-foreground font-medium">
                 {team.captain?.firstName} {team.captain?.lastName}
               </Text>
-              <Text style={{ color: colors.muted }} className="text-sm">
-                {team.captain?.phone || "No phone"}
-              </Text>
+              <Text className="text-muted text-sm">{team.captain?.email}</Text>
             </View>
+            {isCaptain && (
+              <Chip size="sm" variant="secondary">
+                <Chip.Label>You</Chip.Label>
+              </Chip>
+            )}
           </View>
-        </View>
+        </Card>
 
         {/* Members */}
-        <View className="mt-6 mb-3 flex-row items-center justify-between">
-          <Text style={{ color: colors.text }} className="font-semibold">Team Members</Text>
-          {canEdit && canAddMore && (
-            <Pressable
-              className="flex-row items-center gap-1"
-              onPress={() => setShowAddMember(true)}
-            >
-              <Plus size={16} color="#8B5CF6" />
-              <Text className="text-violet-500 font-medium">Add</Text>
-            </Pressable>
-          )}
-        </View>
+        <Text className="text-foreground font-medium mb-3">
+          Members ({nonCaptainMembers.length})
+        </Text>
 
-        <View className="gap-3">
-          {team.members
-            ?.filter((m) => m.userId !== team.captainId)
-            .map((member) => (
-              <View
-                key={member._id}
-                style={{ backgroundColor: colors.card, borderColor: colors.border }}
-                className="rounded-2xl p-4 border flex-row items-center"
-              >
-                <View
-                  style={{ backgroundColor: colors.surface }}
-                  className="w-12 h-12 rounded-full items-center justify-center mr-3"
-                >
-                  <User size={20} color={colors.muted} />
+        {nonCaptainMembers.length > 0 ? (
+          <View className="gap-2 mb-6">
+            {nonCaptainMembers.map((member: TeamMember) => (
+              <Card key={member._id} className="p-4">
+                <View className="flex-row items-center justify-between">
+                  <View>
+                    <Text className="text-foreground font-medium">{member.name}</Text>
+                    {member.phone && (
+                      <Text className="text-muted text-sm">{member.phone}</Text>
+                    )}
+                  </View>
+                  {isCaptain && team.status === "forming" && (
+                    <Pressable onPress={() => handleRemoveMember(member._id)}>
+                      <Ionicons name="close-circle" size={24} color={muted} />
+                    </Pressable>
+                  )}
                 </View>
-                <View className="flex-1">
-                  <Text style={{ color: colors.text }} className="font-semibold">
-                    {member.name}
-                  </Text>
-                  <Text style={{ color: colors.muted }} className="text-sm">
-                    {member.phone || "No phone"}
-                  </Text>
-                </View>
-                {canEdit && (
-                  <Pressable
-                    className="w-8 h-8 rounded-full bg-red-500/15 items-center justify-center"
-                    onPress={() => handleRemoveMember(member._id)}
-                  >
-                    <X size={16} color="#EF4444" />
-                  </Pressable>
-                )}
-              </View>
+              </Card>
             ))}
-
-          {team.members?.length === 1 && (
-            <View className="py-8 items-center">
-              <Users size={32} color={colors.muted} />
-              <Text style={{ color: colors.muted }} className="mt-2">
-                Add team members to continue
-              </Text>
-            </View>
-          )}
-        </View>
+          </View>
+        ) : (
+          <Card className="p-4 mb-6">
+            <Text className="text-muted text-center">No members added yet</Text>
+          </Card>
+        )}
 
         {/* Add Member Form */}
-        {showAddMember && (
-          <View
-            style={{ backgroundColor: colors.card, borderColor: "#8B5CF6" }}
-            className="mt-6 rounded-2xl p-4 border-2"
-          >
-            <Text style={{ color: colors.text }} className="font-semibold mb-4">
-              Add New Member
-            </Text>
+        {isCaptain && team.status === "forming" && memberCount < maxSize && (
+          <Card className="p-4 mb-6">
+            <Text className="text-foreground font-medium mb-3">Add Member</Text>
             <View className="gap-3">
-              <View
-                style={{ backgroundColor: colors.input, borderColor: colors.border }}
-                className="rounded-xl flex-row items-center border px-4"
-              >
-                <User size={18} color={colors.muted} />
-                <TextInput
-                  style={{ color: colors.text }}
-                  className="flex-1 py-3.5 ml-3"
-                  placeholder="Member's full name"
-                  placeholderTextColor={colors.muted}
+              <TextField>
+                <TextField.Label>Name</TextField.Label>
+                <TextField.Input
+                  placeholder="Member name"
                   value={memberName}
                   onChangeText={setMemberName}
-                  autoCapitalize="words"
                 />
-              </View>
-              <View
-                style={{ backgroundColor: colors.input, borderColor: colors.border }}
-                className="rounded-xl flex-row items-center border px-4"
-              >
-                <Phone size={18} color={colors.muted} />
-                <TextInput
-                  style={{ color: colors.text }}
-                  className="flex-1 py-3.5 ml-3"
-                  placeholder="Phone number (optional)"
-                  placeholderTextColor={colors.muted}
+              </TextField>
+              <TextField>
+                <TextField.Label>Phone (optional)</TextField.Label>
+                <TextField.Input
+                  placeholder="Phone number"
+                  keyboardType="phone-pad"
                   value={memberPhone}
                   onChangeText={setMemberPhone}
-                  keyboardType="phone-pad"
                 />
-              </View>
-              <View className="flex-row gap-3 mt-2">
-                <Pressable
-                  style={{ backgroundColor: colors.surface, borderColor: colors.border }}
-                  className="flex-1 rounded-xl py-3.5 items-center border"
-                  onPress={() => setShowAddMember(false)}
-                >
-                  <Text style={{ color: colors.text }} className="font-semibold">Cancel</Text>
-                </Pressable>
-                <Pressable
-                  className="flex-1"
-                  onPress={handleAddMember}
-                  disabled={isLoading}
-                >
-                  <LinearGradient
-                    colors={isLoading ? ["#6B7280", "#4B5563"] : ["#8B5CF6", "#6D28D9"]}
-                    className="rounded-xl py-3.5 items-center"
-                  >
-                    <Text className="text-white font-semibold">
-                      {isLoading ? "Adding..." : "Add"}
-                    </Text>
-                  </LinearGradient>
-                </Pressable>
-              </View>
+              </TextField>
+              <Button
+                variant="secondary"
+                onPress={handleAddMember}
+                isDisabled={!memberName.trim() || isLoading}
+              >
+                <Button.Label>Add Member</Button.Label>
+              </Button>
             </View>
+          </Card>
+        )}
+
+        {/* Actions */}
+        {isCaptain && team.status === "forming" && (
+          <View className="gap-3">
+            <Button
+              variant="primary"
+              onPress={handleSubmit}
+              isDisabled={!canSubmit || isLoading}
+            >
+              <Button.Label>
+                {isLoading ? "Submitting..." : "Submit Team"}
+              </Button.Label>
+            </Button>
+            <Button variant="danger" onPress={handleDelete}>
+              <Button.Label>Delete Team</Button.Label>
+            </Button>
           </View>
         )}
       </ScrollView>
-
-      {/* Bottom Actions */}
-      {canEdit && (
-        <View
-          style={{ backgroundColor: colors.bg, borderTopColor: colors.border }}
-          className="absolute bottom-0 left-0 right-0 border-t px-5 pt-4"
-        >
-          <View style={{ paddingBottom: insets.bottom + 16 }} className="gap-3">
-            <Pressable onPress={handleSubmit} disabled={!canSubmit || isLoading}>
-              <LinearGradient
-                colors={!canSubmit || isLoading ? ["#6B7280", "#4B5563"] : ["#8B5CF6", "#6D28D9"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                className="rounded-xl py-4 items-center"
-              >
-                <Text className="text-white font-semibold">
-                  {canSubmit ? "Submit Team" : `Need ${minMembers - memberCount} more members`}
-                </Text>
-              </LinearGradient>
-            </Pressable>
-            <Pressable
-              className="bg-red-500/15 rounded-xl py-4 flex-row items-center justify-center gap-2"
-              onPress={handleDelete}
-            >
-              <Trash2 size={18} color="#EF4444" />
-              <Text className="text-red-500 font-semibold">Delete Team</Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
-
-      {team.status === "registered" && (
-        <View
-          style={{ backgroundColor: colors.bg, borderTopColor: colors.border }}
-          className="absolute bottom-0 left-0 right-0 border-t px-5 pt-4"
-        >
-          <View style={{ paddingBottom: insets.bottom + 16 }}>
-            <View className="bg-emerald-500/15 rounded-xl p-4 flex-row items-center justify-center gap-2">
-              <CheckCircle size={20} color="#10B981" />
-              <Text className="text-emerald-500 font-semibold">Team Registered!</Text>
-            </View>
-          </View>
-        </View>
-      )}
     </View>
   );
 }

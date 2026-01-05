@@ -1,78 +1,72 @@
+// app/(tabs)/_layout.tsx
 import { Tabs } from "expo-router";
-import { Bookmark, Calendar, Home, User } from "lucide-react-native";
-import { useColorScheme } from "react-native";
+import { useThemeColor } from "heroui-native";
+import { Bookmark, Calendar, User } from "lucide-react-native";
+import { useWindowDimensions } from "react-native";
 
-export default function TabsLayout() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+export default function TabLayout() {
+  const {width} = useWindowDimensions();
+  const [foreground, muted, surface] = useThemeColor([
+    "foreground",
+    "muted",
+    "surface",
+  ]);
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#8B5CF6",
-        tabBarInactiveTintColor: isDark ? "#6b6b7b" : "#9CA3AF",
-        tabBarStyle: {
-          backgroundColor: isDark ? "#0a0a0f" : "#ffffff",
-          borderTopColor: isDark ? "#2a2a3a" : "#E5E7EB",
-          borderTopWidth: 1,
-          height: 85,
-          paddingTop: 8,
-          paddingBottom: 28,
+        tabBarActiveTintColor: foreground,
+        tabBarInactiveTintColor: muted,
+        tabBarShowLabel: false,
+        tabBarItemStyle:{
+      alignItems:"center",
+      justifyContent:"center",
+      paddingTop: 12, // Push icons down
         },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "500",
+
+        tabBarStyle: {
+          alignItems: "center",
+          justifyContent: "center",
+          left: 24,
+          right: 24,
+          bottom:10,
+          backgroundColor: surface,
+          borderRadius: 16,
+          paddingTop: 8, // Add this
+          height: 64,
+          borderTopWidth: 0,
+          width:width -34,
+          alignSelf:"center",
+       
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+          title: "Events",
+          tabBarIcon: ({ color }) => <Calendar size={24} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="schedule"
-        options={{
-          title: "Schedule",
-          tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
-        }}
-      />
+    
       <Tabs.Screen
         name="my-events"
         options={{
           title: "My Events",
-          tabBarIcon: ({ color, size }) => <Bookmark size={size} color={color} />,
+          tabBarIcon: ({ color }) => <Bookmark size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
+          tabBarIcon: ({ color }) => <User size={24} color={color} />,
         }}
       />
-      {/* Hidden screens */}
-      <Tabs.Screen
-        name="program/[id]"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="team/[id]"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="team/create"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="program/[id]" options={{ href: null }} />
+      <Tabs.Screen name="team/[id]" options={{ href: null }} />
+      <Tabs.Screen name="team/create" options={{ href: null }} />
     </Tabs>
   );
 }

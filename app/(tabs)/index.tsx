@@ -1,376 +1,265 @@
+// app/(tabs)/index.tsx
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useAuth } from "@clerk/clerk-expo";
 import { useQuery } from "convex/react";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Bell, Bookmark, Calendar, MapPin, Search, Sparkles, Users } from "lucide-react-native";
-import { useCallback, useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, Text, useColorScheme, View } from "react-native";
+import { Spinner, Tabs, useThemeColor } from "heroui-native";
+import { Clock, MapPin, Sparkles, Users } from "lucide-react-native";
+import { useMemo, useState } from "react";
+import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type Program = {
-  _id: Id<"programs">;
-  name: string;
-  description?: string;
-  time: string;
-  venue?: string;
-  imageUrl?: string;
-  category: "sports" | "art" | "music" | "dance" | "fun" | "other";
-  gender: "male" | "female" | "all";
-  minAge?: number;
-  maxAge?: number;
-  isTeamEvent: boolean;
-  isOpen: boolean;
-};
-
-const CATEGORIES = [
-  { id: "all", label: "All" },
-  { id: "sports", label: "Sports" },
-  { id: "music", label: "Music" },
-  { id: "dance", label: "Dance" },
-  { id: "art", label: "Art" },
-  { id: "fun", label: "Fun" },
+const days = [
+  { key: "1", label: "Day 1" },
+  { key: "2", label: "Day 2" },
+  { key: "3", label: "Day 3" },
 ];
 
-const CATEGORY_GRADIENT: Record<string, [string, string]> = {
-  sports: ["#3B82F6", "#1D4ED8"],
-  art: ["#8B5CF6", "#6D28D9"],
-  music: ["#EC4899", "#BE185D"],
-  dance: ["#F97316", "#C2410C"],
-  fun: ["#10B981", "#047857"],
-  other: ["#6B7280", "#374151"],
-};
-
-export default function HomeScreen() {
-  const { isSignedIn } = useAuth();
+export default function EventsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const [selectedDay, setSelectedDay] = useState("1");
+  const [accent, border, muted] = useThemeColor(["accent", "border", "muted"]);
 
-  const [selectedCategory, setSelectedCategory] = useState("all");
-
+  const programs = useQuery(api.programs.list);
+  const registrations = useQuery(api.registrations.myRegistrations);
   const user = useQuery(api.users.current);
-  const programsByDay = useQuery(api.programs.listGroupedByDay);
-  const myRegistrations = useQuery(api.registrations.myRegistrations);
 
-  const registeredProgramIds = useMemo(() => {
-    if (!myRegistrations) return new Set<string>();
-    return new Set(myRegistrations.map((r) => r.programId));
-  }, [myRegistrations]);
-
-  const allPrograms = useMemo(() => {
-    if (!programsByDay) return [];
-    return [...(programsByDay[1] || []), ...(programsByDay[2] || []), ...(programsByDay[3] || [])];
-  }, [programsByDay]);
+  const popularPrograms = useMemo(() => {
+    if (!programs) return [];
+    return programs.filter((p) => p.isTeamEvent || p.category === "dance").slice(0, 3);
+  }, [programs]);
 
   const filteredPrograms = useMemo(() => {
-    if (selectedCategory === "all") return allPrograms;
-    return allPrograms.filter((p) => p.category === selectedCategory);
-  }, [allPrograms, selectedCategory]);
+    if (!programs) return [];
+    return programs.filter((p) => p.day === Number(selectedDay));
+  }, [programs, selectedDay]);
 
-  const featuredPrograms = useMemo(() => {
-    return allPrograms.filter((p) => p.category === "dance" || p.category === "music").slice(0, 3);
-  }, [allPrograms]);
+  const registeredIds = useMemo(() => {
+    if (!registrations) return new Set<Id<"programs">>();
+    return new Set(registrations.map((r) => r.programId));
+  }, [registrations]);
 
-  const handleProgramPress = useCallback(
-    (programId: Id<"programs">) => {
-      router.push(`/(tabs)/program/${programId}`);
-    },
-    [router]
-  );
+  const isProfileComplete = user?.age && user?.gender;
 
-  const isProfileIncomplete = !user?.age || !user?.gender;
+  const stickyIndex = useMemo(() => {
+    let index = 1;
+    if (!isProfileComplete) index++;
+    if (popularPrograms.length > 0) index++;
+    return index;
+  }, [isProfileComplete, popularPrograms.length]);
 
-  // Theme colors
-  const colors = {
-    bg: isDark ? "#0a0a0f" : "#f5f5f7",
-    surface: isDark ? "#13131a" : "#ffffff",
-    card: isDark ? "#1a1a24" : "#ffffff",
-    border: isDark ? "#2a2a3a" : "#e5e5ea",
-    text: isDark ? "#ffffff" : "#1c1c1e",
-    textSecondary: isDark ? "#a0a0b0" : "#3a3a3c",
-    muted: isDark ? "#6b6b7b" : "#8e8e93",
-  };
+  if (!programs) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <Spinner size="lg" />
+      </View>
+    );
+  }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
+    <ScrollView
+      className="flex-1 bg-background"
+      contentContainerStyle={{
+        paddingTop: insets.top + 16,
+        paddingBottom: insets.bottom + 100,
+      }}
+      showsVerticalScrollIndicator={false}
+      stickyHeaderIndices={[stickyIndex]}
+    >
       {/* Header */}
-      <View className="px-5 pt-4 pb-3 flex-row items-center justify-between">
-        <View>
-          <View className="flex-row items-center gap-2">
-            <Sparkles size={24} color="#8B5CF6" />
-            <Text style={{ color: colors.text }} className="text-2xl font-bold">
-              Utsav
-            </Text>
-          </View>
-          <Text style={{ color: colors.muted }} className="text-sm mt-1">
-            {user ? `Welcome, ${user.firstName}` : "Discover Events"}
-          </Text>
-        </View>
-        <View className="flex-row gap-3">
-          <Pressable
-            style={{ backgroundColor: colors.surface }}
-            className="w-10 h-10 rounded-full items-center justify-center"
-          >
-            <Bell size={20} color={colors.textSecondary} />
-          </Pressable>
-          <Pressable
-            style={{ backgroundColor: colors.surface }}
-            className="w-10 h-10 rounded-full items-center justify-center"
-          >
-            <Bookmark size={20} color={colors.textSecondary} />
-          </Pressable>
-        </View>
+      <View className="px-4 mb-6">
+        <Text className="text-2xl font-bold text-foreground">Events</Text>
+        <Text className="text-muted text-sm mt-1">Saraswati Puja 2025</Text>
       </View>
 
-      {/* Search Bar */}
-      <View className="px-5 mb-4">
-        <Pressable
-          style={{ backgroundColor: colors.surface, borderColor: colors.border }}
-          className="flex-row items-center px-4 py-3 rounded-2xl border"
-        >
-          <Search size={20} color={colors.muted} />
-          <Text style={{ color: colors.muted }} className="ml-3">
-            Search events...
-          </Text>
+      {/* Profile Warning */}
+      {!isProfileComplete && (
+        <Pressable onPress={() => router.push("/(tabs)/profile")} className="px-4 mb-6">
+          <View 
+            className="rounded-2xl p-4 bg-warning/10"
+            style={{ borderWidth: 1, borderColor: "rgba(245,158,11,0.3)" }}
+          >
+            <Text className="text-warning font-medium text-sm">
+              Complete your profile to register for events →
+            </Text>
+          </View>
         </Pressable>
-      </View>
+      )}
 
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Profile Warning */}
-        {isSignedIn && isProfileIncomplete && (
-          <Pressable className="mx-5 mb-4" onPress={() => router.push("/(tabs)/profile")}>
-            <LinearGradient
-              colors={["#F59E0B", "#D97706"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              className="rounded-2xl p-4 flex-row items-center"
-            >
-              <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3">
-                <Sparkles size={20} color="#fff" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-white font-semibold">Complete your profile</Text>
-                <Text className="text-white/70 text-sm">Add age & gender to register</Text>
-              </View>
-            </LinearGradient>
-          </Pressable>
-        )}
-
-        {/* Featured Section */}
+      {/* Popular Section */}
+      {popularPrograms.length > 0 && (
         <View className="mb-6">
-          <View className="px-5 flex-row items-center justify-between mb-3">
-            <Text style={{ color: colors.text }} className="text-lg font-semibold">
-              Featured
-            </Text>
-            <Pressable>
-              <Text className="text-violet-500 text-sm font-medium">See all</Text>
-            </Pressable>
+          <View className="flex-row items-center gap-2 mb-3 px-4">
+            <Sparkles size={18} color={accent} />
+            <Text className="text-foreground font-semibold">Popular</Text>
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
-          >
-            {featuredPrograms.map((program) => (
-              <Pressable
-                key={program._id}
-                onPress={() => handleProgramPress(program._id)}
-                className="w-72"
-              >
-                <View className="rounded-3xl overflow-hidden">
-                  <Image
-                    source={{ uri: program.imageUrl || "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400" }}
-                    className="w-full h-40"
-                    resizeMode="cover"
-                  />
-                  <LinearGradient
-                    colors={["transparent", "rgba(0,0,0,0.8)"]}
-                    className="absolute inset-0 justify-end p-4"
-                  >
-                    <Text className="text-white font-bold text-lg">{program.name}</Text>
-                    {program.venue && (
-                      <View className="flex-row items-center mt-1">
-                        <MapPin size={12} color="#a0a0b0" />
-                        <Text className="text-white/70 text-xs ml-1">{program.venue}</Text>
-                      </View>
-                    )}
-                  </LinearGradient>
-                  {registeredProgramIds.has(program._id) && (
-                    <View className="absolute top-3 right-3 bg-emerald-500 px-2 py-1 rounded-full">
-                      <Text className="text-white text-xs font-medium">Registered</Text>
-                    </View>
-                  )}
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Category Filter */}
-        <View className="mb-4">
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
-          >
-            {CATEGORIES.map((cat) => {
-              const isSelected = selectedCategory === cat.id;
-              return (
-                <Pressable
-                  key={cat.id}
-                  onPress={() => setSelectedCategory(cat.id)}
-                  style={{
-                    backgroundColor: isSelected ? "#8B5CF6" : colors.surface,
-                    borderColor: colors.border,
-                  }}
-                  className={`px-5 py-2.5 rounded-full ${!isSelected && "border"}`}
-                >
-                  <Text
-                    style={{ color: isSelected ? "#fff" : colors.textSecondary }}
-                    className="font-medium text-sm"
-                  >
-                    {cat.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* Events List */}
-        <View className="px-5">
-          <View className="flex-row items-center justify-between mb-3">
-            <Text style={{ color: colors.text }} className="text-lg font-semibold">
-              All Events
-            </Text>
-            <Text style={{ color: colors.muted }} className="text-sm">
-              {filteredPrograms.length} events
-            </Text>
-          </View>
-
-          <View className="gap-4">
-            {filteredPrograms.map((program: Program) => {
-              const isRegistered = registeredProgramIds.has(program._id);
-              const gradient = CATEGORY_GRADIENT[program.category] || CATEGORY_GRADIENT.other;
-
-              return (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View className="flex-row gap-3 px-4">
+              {popularPrograms.map((program) => (
                 <Pressable
                   key={program._id}
-                  onPress={() => handleProgramPress(program._id)}
-                  style={{ backgroundColor: colors.card, borderColor: colors.border }}
-                  className="rounded-2xl overflow-hidden border"
+                  onPress={() => router.push(`/(tabs)/program/${program._id}`)}
+                  className="w-40"
                 >
-                  <View className="flex-row">
-                    {/* Image */}
-                    <View className="w-28 h-28 relative">
-                      <Image
-                        source={{ uri: program.imageUrl || "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200" }}
-                        className="w-full h-full"
-                        resizeMode="cover"
-                      />
+                  <View
+                    className="rounded-2xl overflow-hidden bg-surface"
+                    style={{ borderWidth: 1, borderColor: border }}
+                  >
+                    <View className="relative h-24">
+                      {program.imageUrl ? (
+                        <Image
+                          source={{ uri: program.imageUrl }}
+                          className="w-full h-full"
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View className="w-full h-full bg-default" />
+                      )}
                       <LinearGradient
                         colors={["transparent", "rgba(0,0,0,0.5)"]}
                         className="absolute inset-0"
                       />
-                      {/* Day Badge */}
-                      <View className="absolute top-2 left-2 bg-black/50 px-2 py-1 rounded-md">
-                        <Text className="text-white text-xs font-medium">Day {program.day}</Text>
+                      <View className="absolute top-2 left-2 bg-accent px-2 py-0.5 rounded-full">
+                        <Text className="text-accent-foreground text-xs font-medium">Popular</Text>
                       </View>
                     </View>
-
-                    {/* Content */}
-                    <View className="flex-1 p-3 justify-between">
-                      <View>
-                        <Text style={{ color: colors.text }} className="font-semibold text-base">
-                          {program.name}
-                        </Text>
-                      </View>
-
-                      <View className="gap-1.5">
-                        {/* Category Chip */}
-                        <View className="flex-row items-center">
-                          <LinearGradient
-                            colors={gradient}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            className="px-2 py-0.5 rounded-full"
-                          >
-                            <Text className="text-white text-xs font-medium capitalize">
-                              {program.category}
-                            </Text>
-                          </LinearGradient>
-                          {program.isTeamEvent && (
-                            <View
-                              style={{ backgroundColor: colors.surface }}
-                              className="ml-2 flex-row items-center px-2 py-0.5 rounded-full"
-                            >
-                              <Users size={10} color={colors.muted} />
-                              <Text style={{ color: colors.muted }} className="text-xs ml-1">
-                                Team
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-
-                        {/* Venue & Time */}
-                        <View className="flex-row items-center gap-3">
-                          {program.venue && (
-                            <View className="flex-row items-center">
-                              <MapPin size={12} color={colors.muted} />
-                              <Text style={{ color: colors.muted }} className="text-xs ml-1">
-                                {program.venue}
-                              </Text>
-                            </View>
-                          )}
-                          <View className="flex-row items-center">
-                            <Calendar size={12} color={colors.muted} />
-                            <Text style={{ color: colors.muted }} className="text-xs ml-1">
-                              {program.time}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                    </View>
-
-                    {/* Status */}
-                    <View className="p-3 justify-center">
-                      {isRegistered ? (
-                        <View className="bg-emerald-500/20 px-3 py-1.5 rounded-full">
-                          <Text className="text-emerald-500 text-xs font-medium">✓</Text>
-                        </View>
-                      ) : program.isOpen ? (
-                        <View className="bg-violet-500/20 p-2 rounded-full">
-                          <Bookmark size={16} color="#8B5CF6" />
-                        </View>
-                      ) : (
-                        <View style={{ backgroundColor: colors.surface }} className="px-2 py-1 rounded-full">
-                          <Text style={{ color: colors.muted }} className="text-xs">Closed</Text>
-                        </View>
-                      )}
+                    <View className="p-3">
+                      <Text className="text-foreground font-medium text-sm" numberOfLines={1}>
+                        {program.name}
+                      </Text>
+                      <Text className="text-muted text-xs mt-1">
+                        Day {program.day} · {program.time}
+                      </Text>
                     </View>
                   </View>
                 </Pressable>
-              );
-            })}
-          </View>
-
-          {filteredPrograms.length === 0 && (
-            <View className="py-12 items-center">
-              <Calendar size={48} color={colors.muted} />
-              <Text style={{ color: colors.muted }} className="mt-4">
-                No events found
-              </Text>
+              ))}
             </View>
-          )}
+          </ScrollView>
         </View>
-      </ScrollView>
-    </View>
+      )}
+
+      {/* Sticky Day Tabs */}
+      <View 
+        className="bg-background px-4 py-3"
+        style={{ borderBottomWidth: 1, borderBottomColor: border }}
+      >
+        <Tabs value={selectedDay} onValueChange={setSelectedDay}>
+          <Tabs.List className="w-full">
+            <Tabs.Indicator />
+            {days.map((day) => (
+              <Tabs.Trigger key={day.key} value={day.key} className="flex-1">
+                <Tabs.Label>{day.label}</Tabs.Label>
+              </Tabs.Trigger>
+            ))}
+          </Tabs.List>
+        </Tabs>
+      </View>
+
+      {/* Events List */}
+      <View className="gap-4 px-4 pt-4">
+        {filteredPrograms.map((program) => {
+          const isRegistered = registeredIds.has(program._id);
+
+          return (
+            <Pressable
+              key={program._id}
+              onPress={() => router.push(`/(tabs)/program/${program._id}`)}
+            >
+              <View
+                className="rounded-2xl overflow-hidden bg-surface"
+                style={{ borderWidth: 1, borderColor: border }}
+              >
+                {/* Image */}
+                <View className="relative h-40">
+                  {program.imageUrl ? (
+                    <Image
+                      source={{ uri: program.imageUrl }}
+                      className="w-full h-full"
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View className="w-full h-full bg-default" />
+                  )}
+                  <LinearGradient
+                    colors={["transparent", "rgba(0,0,0,0.6)"]}
+                    className="absolute inset-0"
+                  />
+
+                  {/* Registered Badge */}
+                  {isRegistered && (
+                    <View className="absolute top-3 left-3 bg-accent px-2.5 py-1 rounded-full">
+                      <Text className="text-accent-foreground text-xs font-semibold">
+                        ✓ Registered
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Time & Venue */}
+                  <View className="absolute bottom-3 left-3 right-3 flex-row items-center gap-2">
+                    <View className="flex-row items-center gap-1 bg-black/50 px-2.5 py-1 rounded-full">
+                      <Clock size={12} color="#fff" />
+                      <Text className="text-white text-xs font-medium">{program.time}</Text>
+                    </View>
+                    {program.venue && (
+                      <View className="flex-row items-center gap-1 bg-black/50 px-2.5 py-1 rounded-full">
+                        <MapPin size={12} color="#fff" />
+                        <Text className="text-white text-xs font-medium" numberOfLines={1}>
+                          {program.venue}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                {/* Content */}
+                <View className="p-4">
+                  <Text className="text-foreground font-semibold text-lg">{program.name}</Text>
+
+                  {program.description && (
+                    <Text className="text-muted text-sm mt-1" numberOfLines={2}>
+                      {program.description}
+                    </Text>
+                  )}
+
+                  {/* Tags */}
+                  <View 
+                    className="flex-row items-center gap-2 mt-3 pt-3"
+                    style={{ borderTopWidth: 1, borderTopColor: border }}
+                  >
+                    <View className="px-2.5 py-1 rounded-full bg-accent/10">
+                      <Text className="text-accent text-xs font-medium capitalize">
+                        {program.category}
+                      </Text>
+                    </View>
+                    {program.isTeamEvent && (
+                      <View className="flex-row items-center gap-1 px-2.5 py-1 rounded-full bg-default">
+                        <Users size={12} color={muted} />
+                        <Text className="text-foreground text-xs font-medium">Team</Text>
+                      </View>
+                    )}
+                    {program.gender !== "all" && (
+                      <View className="px-2.5 py-1 rounded-full bg-default">
+                        <Text className="text-foreground text-xs font-medium capitalize">
+                          {program.gender}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {filteredPrograms.length === 0 && (
+        <View className="items-center py-16 px-4">
+          <Text className="text-muted">No events on this day</Text>
+        </View>
+      )}
+    </ScrollView>
   );
 }
